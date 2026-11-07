@@ -290,3 +290,15 @@ def MENUS(urls):
         ]
 
     return {"main": main, "owner": owner, "tutorial": tutorial}
+
+async def safe_call(coro, retries=3):
+    from telethon.errors import FloodWaitError
+    for i in range(retries):
+        try:
+            return await coro
+        except FloodWaitError as e:
+            await asyncio.sleep(e.seconds + 1)
+        except Exception:
+            if i == retries - 1:
+                raise
+            await asyncio.sleep(1)
