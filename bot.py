@@ -187,7 +187,7 @@ async def h_start(event):
         await event.respond("👑 <b>Owner Panel</b>\n\nManage access requests and approvals.", buttons=owner_menu(), parse_mode="html")
         return
     if await is_user_approved(uid):
-        await event.respond("✅ <b>Access granted</b>\n\nChoose an option below.", buttons=main_menu(), parse_mode="html")
+        await send_start_pic(bot, event.chat_id, "✅ <b>Access granted</b>\n\nChoose an option below.", main_menu(), db=DB)
         return
     name = html.escape(event.sender.first_name or "Unknown")
     username = ("@" + event.sender.username) if event.sender.username else "None"
