@@ -117,88 +117,77 @@ def init(ctx):
         await event.edit("\n".join(lines), parse_mode="html", buttons=btns)
         raise events.StopPropagation
 
+    # ── NEW: broadcast, stats, logs, settings, log delete ──
+    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:stats"))
+    async def cb_stats(event):
+        if event.sender_id not in OWNER_IDS:
+            return await event.answer("Owner only", alert=True)
+        if DB:
+            c = await DB.count()
+            text = "📊 <b>Statistics</b>\n\n👥 Approved: <b>" + str(c["approved"]) + "</b>\n⏳ Pending: <b>" + str(c["pending"]) + "</b>"
+        else:
+            text = "📊 <b>Statistics</b>\n\n👥 Approved: <b>" + str(len(approved)) + "</b>\n⏳ Pending: <b>" + str(len(pending)) + "</b>"
+        await event.edit(text, parse_mode="html", buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
+        raise events.StopPropagation
 
     @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:broadcast"))
     async def cb_broadcast(event):
-        uid = event.sender_id
-        if uid not in OWNER_IDS:
+        if event.sender_id not in OWNER_IDS:
             return await event.answer("Owner only", alert=True)
-        WAIT[uid] = "broadcast"
+        WAIT[event.sender_id] = "broadcast"
         await event.edit(
-            "📢 <b>Broadcast Mode</b>
-
-"
-            "Send the message you want to broadcast to all approved users.
-"
-            "You can also reply to a message with /broadcast.",
+            "📢 <b>Broadcast Mode</b>\n\nSend the message to broadcast to all approved users.",
             parse_mode="html",
             buttons=[[Button.inline("⬅️ Cancel", b"menu:main")]]
         )
         raise events.StopPropagation
 
-    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:stats"))
-    async def cb_stats(event):
-        uid = event.sender_id
-        if uid not in OWNER_IDS:
+    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:logs"))
+    async def cb_logs(event):
+        if event.sender_id not in OWNER_IDS:
             return await event.answer("Owner only", alert=True)
-        if DB:
-            c = await DB.count()
-            text = "📊 <b>Bot Statistics</b>
+        if not DB:
+            return await event.edit("❌ DB not configured", buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
+        try:
+            cur = DB.logs.find().sort("ts", -1).limit(15)
+            docs = [d async for d in cur]
+            if not docs:
+                return await event.edit("📋 <b>Logs</b>\n\nNo logs yet.", parse_mode="html", buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
+            lines = ["📋 <b>Recent Logs</b> (last " + str(len(docs)) + ")\n"]
+            for d in docs:
+                ts = d.get("ts")
+                ts_str = ts.strftime("%m-%d %H:%M") if ts else "?"
+                lines.append("• <code>" + str(d.get("user_id","")) + "</code> " + ts_str + " <b>" + str(d.get("action","")) + "</b>")
+            await event.edit("\n".join(lines), parse_mode="html", buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
+        except Exception as ex:
+            await event.edit("❌ " + str(ex), buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
+        raise events.StopPropagation
 
-👥 Approved: <b>" + str(c["approved"]) + "</b>
-⏳ Pending: <b>" + str(c["pending"]) + "</b>"
-        else:
-            text = "📊 <b>Bot Statistics</b>
-
-👥 Approved: <b>" + str(len(approved)) + "</b>
-⏳ Pending: <b>" + str(len(pending)) + "</b>"
+    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:settings"))
+    async def cb_settings(event):
+        if event.sender_id not in OWNER_IDS:
+            return await event.answer("Owner only", alert=True)
+        import os as _os
+        text = (
+            "⚙️ <b>Settings</b>\n\n"
+            "👥 Owners: <b>" + str(len(OWNER_IDS)) + "</b>\n"
+            "📊 Log Chat: <code>" + (_os.environ.get("LOG_CHAT_ID") or "not set") + "</code>\n"
+            "🖼 Start Pic: <code>" + ("set" if _os.environ.get("START_PIC_URL") else "not set") + "</code>"
+        )
         await event.edit(text, parse_mode="html", buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
         raise events.StopPropagation
 
-    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:health"))
-    async def cb_health(event):
-        r = await health_check(user_client)
-        if r.get("ok"):
-            text = "🩺 <b>Health Check</b>
-
-Status: ✅ <b>Healthy</b>
-👤 " + html.escape(str(r.get("name"))) + "
-🆔 <code>" + str(r.get("id")) + "</code>
-📱 <code>" + html.escape(str(r.get("phone"))) + "</code>"
-        else:
-            text = "🩺 <b>Health Check</b>
-
-Status: ❌ <b>Unhealthy</b>
-<code>" + html.escape(str(r.get("error"))) + "</code>"
-        await event.edit(text, parse_mode="html", buttons=[[Button.inline("⬅️ Back", b"menu:main")]])
-        raise events.StopPropagation
-
-    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:pending:0"))
-    async def cb_pending_0(event):
-        if event.sender_id not in OWNER_IDS: return await event.answer("Owner only", alert=True)
-        items = await DB.list_pending(limit=100) if DB else [{"_id": k, "name": v.get("name","")} for k,v in pending.items()]
-        chunk, page, pages = paginate(items, 0, 8)
-        lines = ["👥 <b>Pending</b> (" + str(page+1) + "/" + str(pages) + ")\n"]
-        for it in chunk:
-            lines.append("• <code>" + str(it.get("_id")) + "</code> — " + html.escape(str(it.get("name",""))))
-        nav = []
-        if page < pages-1: nav.append(Button.inline("Next ➡️", ("own:pending:"+str(page+1)).encode()))
-        btns = [nav] if nav else []
-        btns.append([Button.inline("⬅️ Back", b"menu:main")])
-        await event.edit("\n".join(lines), parse_mode="html", buttons=btns)
-        raise events.StopPropagation
-
-    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:approved:0"))
-    async def cb_approved_0(event):
-        if event.sender_id not in OWNER_IDS: return await event.answer("Owner only", alert=True)
-        items = await DB.list_approved(limit=200) if DB else [{"_id": x} for x in approved]
-        chunk, page, pages = paginate(items, 0, 8)
-        lines = ["✅ <b>Approved</b> (" + str(page+1) + "/" + str(pages) + ")\n"]
-        for it in chunk:
-            lines.append("• <code>" + str(it.get("_id")) + "</code>")
-        nav = []
-        if page < pages-1: nav.append(Button.inline("Next ➡️", ("own:approved:"+str(page+1)).encode()))
-        btns = [nav] if nav else []
-        btns.append([Button.inline("⬅️ Back", b"menu:main")])
-        await event.edit("\n".join(lines), parse_mode="html", buttons=btns)
+    @bot.on(events.CallbackQuery(func=lambda e: e.data.startswith(b"log:del:")))
+    async def cb_log_delete(event):
+        if event.sender_id not in OWNER_IDS:
+            return await event.answer("Owner only", alert=True)
+        if not DB:
+            return await event.answer("DB not configured", alert=True)
+        try:
+            from bson import ObjectId
+            oid = event.data.decode().split(":", 2)[2]
+            await DB.logs.delete_one({"_id": ObjectId(oid)})
+            await event.edit("🗑 Log deleted", buttons=[])
+        except Exception as ex:
+            await event.answer("Error: " + str(ex), alert=True)
         raise events.StopPropagation

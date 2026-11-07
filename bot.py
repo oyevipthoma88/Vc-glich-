@@ -220,7 +220,7 @@ async def h_callback(event):
     uid = event.sender_id
     data = event.data.decode(errors="ignore")
     await LOGGER.log(uid, getattr(event.sender, "username", ""), getattr(event.sender, "first_name", ""), "CALLBACK", data)
-    if data.startswith(("own:health","own:broadcast","own:pending:","own:approved:","own:login")):
+    if data.startswith(("own:health","own:broadcast","own:pending:","own:approved:","own:login","own:stats","own:logs","own:settings","log:del:")):
         return
     if data.startswith("apr:") or data.startswith("rej:"):
         if uid not in OWNER_IDS:
@@ -324,6 +324,17 @@ async def h_text(event):
     if not text or text.startswith("/"):
         return
     if LOGIN.get_state(uid):
+        return
+    if WAIT.get(uid) == "broadcast":
+        WAIT.pop(uid, None)
+        if not text:
+            return await event.respond("Empty message, cancelled.")
+        if DB:
+            from modules import broadcast as _bcast
+            s, f = await _bcast(bot, DB, uid, text)
+            await event.respond("📢 Broadcast sent: ✅ " + str(s) + " / ❌ " + str(f))
+        else:
+            await event.respond("DB not configured")
         return
     if uid not in approved and uid not in OWNER_IDS:
         return await event.respond("⛔ Access denied. Send /start to request access.")
