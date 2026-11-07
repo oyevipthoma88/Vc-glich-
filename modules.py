@@ -222,3 +222,71 @@ async def health_check(user_client):
         return {"ok": True, "name": me.first_name, "id": me.id, "phone": "+" + str(me.phone), "ts": time.time()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+# ─── Strong logic helpers ────────────────────────────────────────
+import re as _re
+_COOLDOWN = {}
+COOLDOWN_SEC = 15
+
+def check_cooldown(uid):
+    now = time.time()
+    last = _COOLDOWN.get(uid, 0)
+    if now - last < COOLDOWN_SEC:
+        return int(COOLDOWN_SEC - (now - last))
+    _COOLDOWN[uid] = now
+    return 0
+
+def validate_target(text):
+    t = text.strip()
+    if _re.match(r"^https?://t\.me/", t):
+        return t
+    if _re.match(r"^@[A-Za-z0-9_]{4,}$", t):
+        return t
+    if _re.match(r"^-100\d{7,}$", t):
+        return t
+    return None
+
+def paginate(items, page=0, per_page=8):
+    total = len(items)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(0, min(page, pages - 1))
+    return items[page*per_page:(page+1)*per_page], page, pages
+
+def format_vc_result(res):
+    if "error" in res:
+        return "❌ <b>Error:</b> <code>" + html.escape(str(res.get("error"))) + "</code>\n" + html.escape(str(res.get("detail", "")))
+    lines = ["✅ <b>VC Server Info</b>", "", "📛 <b>" + html.escape(str(res.get("title", ""))) + "</b>", "🆔 <code>" + str(res.get("group_id", "")) + "</code>", "👥 Participants: <b>" + str(res.get("participants", "?")) + "</b>", "", "<b>SFU IPs:</b>"]
+    for ip in res.get("ips", []):
+        lines.append("• <code>" + html.escape(str(ip)) + "</code>")
+    return "\n".join(lines)
+
+# ─── MENUS v2 (colored + better labels) ─────────────────────────
+def MENUS(urls):
+    t = urls.get("tutorial", "https://github.com/oyevipthoma88/Vc-glich-")
+    v = urls.get("video", t)
+    bf = urls.get("botfather", "https://t.me/BotFather")
+    mt = urls.get("mytg", "https://my.telegram.org")
+
+    def main():
+        return [
+            [btn("🔍 Get VC IP", b"menu:vc", "primary"), btn("👤 My Account", b"menu:me", "primary")],
+            [btn("📖 Tutorial", b"menu:tut", "success"), btn("❓ Help", b"menu:help", "primary")],
+            [lnk("🎥 Video Guide", v, "success"), lnk("📄 Docs", t, "primary")],
+        ]
+
+    def owner():
+        return [
+            [btn("👥 Pending", b"own:pending:0", "primary"), btn("✅ Approved", b"own:approved:0", "success")],
+            [btn("📊 Stats", b"own:stats", "primary"), btn("🩺 Health", b"own:health", "primary")],
+            [btn("🔑 Login Userbot", b"own:login", "success"), btn("📢 Broadcast", b"own:broadcast", "danger")],
+            [btn("🏠 Main Menu", b"menu:main", "success")],
+        ]
+
+    def tutorial():
+        return [
+            [lnk("🤖 BotFather", bf, "primary"), lnk("🔑 my.telegram.org", mt, "primary")],
+            [lnk("📄 GitHub Docs", t, "success"), lnk("🎥 Video", v, "success")],
+            [btn("⬅️ Back", b"menu:main", "danger")],
+        ]
+
+    return {"main": main, "owner": owner, "tutorial": tutorial}

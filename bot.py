@@ -21,7 +21,7 @@ except Exception:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("vcbot")
 
-from modules import Database, LoginFlow, MENUS, broadcast, health_check, btn, lnk
+from modules import Database, LoginFlow, MENUS, broadcast, health_check, btn, lnk, check_cooldown, validate_target, paginate, format_vc_result, safe_call
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
@@ -84,21 +84,21 @@ def lnk(text, url, style=None):
             pass
     return Button.url(text, url)
 
-def main_menu():
+def MENU["main"]():
     return [
         [cb("🔍 Get VC IP", b"menu:vc", "primary"), cb("👤 My Account", b"menu:me", "primary")],
         [cb("📖 Tutorial", b"menu:tut", "success"), cb("❓ Help", b"menu:help", "primary")],
         [lnk("🎥 Video Guide", VIDEO_URL, "success"), lnk("📄 Docs", TUTORIAL_URL, "primary")],
     ]
 
-def owner_menu():
+def MENU["owner"]():
     return [
         [cb("👥 Pending", b"own:pending", "primary"), cb("✅ Approved", b"own:approved", "success")],
         [cb("📊 Stats", b"own:stats", "primary"), cb("🔄 Refresh", b"own:refresh", "primary")],
         [cb("🏠 Main Menu", b"menu:main", "success")],
     ]
 
-def tutorial_menu():
+def MENU["tutorial"]():
     return [
         [lnk("🤖 BotFather", BOTFATHER_URL, "primary"), lnk("🔑 my.telegram.org", MYTG_URL, "primary")],
         [lnk("📄 GitHub Docs", TUTORIAL_URL, "success"), lnk("🎥 Video", VIDEO_URL, "success")],
@@ -193,10 +193,10 @@ async def h_start(event):
     uid = event.sender_id
     WAIT.pop(uid, None)
     if uid in OWNER_IDS:
-        await event.respond("👑 <b>Owner Panel</b>\n\nManage access requests and approvals.", buttons=owner_menu(), parse_mode="html")
+        await event.respond("👑 <b>Owner Panel</b>\n\nManage access requests and approvals.", buttons=MENU["owner"](), parse_mode="html")
         return
     if await is_user_approved(uid):
-        await event.respond("✅ <b>Access granted</b>\n\nChoose an option below.", buttons=main_menu(), parse_mode="html")
+        await event.respond("✅ <b>Access granted</b>\n\nChoose an option below.", buttons=MENU["main"](), parse_mode="html")
         return
     name = html.escape(event.sender.first_name or "Unknown")
     username = ("@" + event.sender.username) if event.sender.username else "None"
@@ -228,6 +228,8 @@ async def h_start(event):
 async def h_callback(event):
     uid = event.sender_id
     data = event.data.decode(errors="ignore")
+    if data.startswith(("own:health","own:broadcast","own:pending:","own:approved:","own:login")):
+        return
     if data.startswith("apr:") or data.startswith("rej:"):
         if uid not in OWNER_IDS:
             return await event.answer("Only owners can do this.", alert=True)
@@ -239,7 +241,7 @@ async def h_callback(event):
             save_json(PENDING_FILE, pending)
             await event.edit("✅ Approved user <code>" + str(target) + "</code>", parse_mode="html")
             try:
-                await bot.send_message(target, "✅ <b>Approved!</b>\n\nSend /start.", buttons=main_menu(), parse_mode="html")
+                await bot.send_message(target, "✅ <b>Approved!</b>\n\nSend /start.", buttons=MENU["main"](), parse_mode="html")
             except Exception:
                 pass
         else:
@@ -254,7 +256,7 @@ async def h_callback(event):
     if uid not in approved and uid not in OWNER_IDS:
         return await event.answer("Access denied.", alert=True)
     if data == "menu:main":
-        await event.edit("🏠 <b>Main Menu</b>", buttons=main_menu(), parse_mode="html")
+        await event.edit("🏠 <b>Main Menu</b>", buttons=MENU["main"](), parse_mode="html")
     elif data == "menu:vc":
         WAIT[uid] = "vc"
         await event.edit("🔍 <b>Send group link, @username, or chat ID.</b>", parse_mode="html")
@@ -262,7 +264,7 @@ async def h_callback(event):
         me = await user_client.get_me()
         await event.edit("👤 <b>My Account</b>\n\nName: <b>" + html.escape(me.first_name or "") + "</b>\nID: <code>" + str(me.id) + "</code>\nPhone: <code>+" + str(me.phone) + "</code>", buttons=[[cb("⬅️ Back", b"menu:main", "danger")]], parse_mode="html")
     elif data == "menu:tut":
-        await event.edit("📖 <b>Tutorial & Resources</b>", buttons=tutorial_menu(), parse_mode="html")
+        await event.edit("📖 <b>Tutorial & Resources</b>", buttons=MENU["tutorial"](), parse_mode="html")
     elif data == "menu:help":
         await event.edit("❓ <b>Help</b>\n\nSend group URL, @username, or chat ID. Bot joins VC silently and extracts SFU server IPs.", buttons=[[cb("⬅️ Back", b"menu:main", "danger")]], parse_mode="html")
     elif data == "own:pending":
@@ -327,21 +329,40 @@ async def h_text(event):
     text = (event.raw_text or "").strip()
     if not text or text.startswith("/"):
         return
+    if LOGIN.get_state(uid):
+        return
     if uid not in approved and uid not in OWNER_IDS:
         return await event.respond("⛔ Access denied. Send /start to request access.")
-    if WAIT.get(uid) == "vc" or text.startswith(("https://t.me/", "@", "-100")):
+    if WAIT.get(uid) == "vc" or validate_target(text):
+        target = validate_target(text) or text
+        cd = check_cooldown(uid)
+        if cd:
+            return await event.respond("⏳ Cooldown: wait " + str(cd) + "s")
+        WAIT.pop(uid, None)
         WAIT.pop(uid, None)
         msg = await event.respond("⏳ Fetching VC server IPs...")
         try:
-            res = await fetch_vc(user_client, text)
+            res = await fetch_vc(user_client, target)
             out = json.dumps(res, indent=2, ensure_ascii=False)
-            await msg.edit("<pre>" + html.escape(out) + "</pre>", parse_mode="html")
+            await msg.edit(format_vc_result(res), parse_mode="html")
         except Exception as e:
             await msg.edit("❌ Error: <code>" + html.escape(str(e)) + "</code>", parse_mode="html")
     else:
-        await event.respond("Use the menu or send a group link.", buttons=main_menu())
+        await event.respond("Use the menu or send a group link.", buttons=MENU["main"]())
+
+import handlers
+handlers.init({"bot": bot, "user_client": user_client, "DB": DB, "LOGIN": LOGIN, "MENU": MENU, "OWNER_IDS": OWNER_IDS, "approved": approved, "pending": pending, "WAIT": WAIT, "fetch_vc": fetch_vc, "format_vc_result": format_vc_result, "paginate": paginate, "check_cooldown": check_cooldown, "validate_target": validate_target, "broadcast": broadcast, "health_check": health_check})
 
 async def main():
+    global user_client
+    if not TG_SESSION and DB:
+        try:
+            _s = await DB.get_session(OWNER_IDS[0])
+            if _s:
+                from telethon.sessions import StringSession as _SS
+                user_client = TelegramClient(_SS(_s), API_ID, API_HASH)
+        except Exception:
+            pass
     await bot.start(bot_token=BOT_TOKEN)
     await user_client.connect()
     ok = await user_client.is_user_authorized()
