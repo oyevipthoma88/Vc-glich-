@@ -39,6 +39,12 @@ export TUTORIAL_URL="$IN"
 read -rp "VIDEO_URL (optional): " IN
 export VIDEO_URL="$IN"
 
+read -rp "LOG_CHAT_ID (group ID for logs, -100...): " IN
+export LOG_CHAT_ID="${IN:-0}"
+
+read -rp "START_PIC_URL (optional image URL): " IN
+export START_PIC_URL="$IN"
+
 echo ""
 echo "═══════════════════════════════════════════════"
 echo "  Env Summary"
@@ -60,4 +66,4 @@ read -rp "Start bot? [Y/n]: " GO
 echo ""
 echo "🚀 Starting bot... (Ctrl+C to stop)"
 echo ""
-python3 -u bot.py
+/root/vcvenv/bin/python3 -u bot.py

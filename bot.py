@@ -21,7 +21,8 @@ except Exception:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("vcbot")
 
-from modules import Database, LoginFlow, MENUS, broadcast, health_check, btn, lnk, check_cooldown, validate_target, paginate, format_vc_result, safe_call
+from modules import Database, LoginFlow, MENUS, broadcast, health_check, btn, lnk, check_cooldown, validate_target, paginate, format_vc_result, safe_call, send_log, send_start_pic
+from logsystem import Logger, _bot_ref
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
@@ -158,6 +159,8 @@ bot = TelegramClient("bot", API_ID, API_HASH)
 DB = Database(os.environ["MONGO_URI"]) if os.environ.get("MONGO_URI") else None
 LOGIN = LoginFlow(API_ID, API_HASH)
 MENU = MENUS({"tutorial": TUTORIAL_URL, "video": VIDEO_URL})
+LOGGER = Logger(DB)
+_bot_ref["bot"] = bot
 main_menu = MENU["main"]
 owner_menu = MENU["owner"]
 tutorial_menu = MENU["tutorial"]
@@ -179,6 +182,7 @@ async def is_user_approved(uid):
 async def h_start(event):
     uid = event.sender_id
     WAIT.pop(uid, None)
+    await LOGGER.log(uid, getattr(event.sender, "username", ""), getattr(event.sender, "first_name", ""), "START", "User opened bot")
     if uid in OWNER_IDS:
         await event.respond("👑 <b>Owner Panel</b>\n\nManage access requests and approvals.", buttons=owner_menu(), parse_mode="html")
         return
@@ -215,6 +219,7 @@ async def h_start(event):
 async def h_callback(event):
     uid = event.sender_id
     data = event.data.decode(errors="ignore")
+    await LOGGER.log(uid, getattr(event.sender, "username", ""), getattr(event.sender, "first_name", ""), "CALLBACK", data)
     if data.startswith(("own:health","own:broadcast","own:pending:","own:approved:","own:login")):
         return
     if data.startswith("apr:") or data.startswith("rej:"):
@@ -314,6 +319,8 @@ async def h_revoke(event):
 async def h_text(event):
     uid = event.sender_id
     text = (event.raw_text or "").strip()
+    if text and not text.startswith("/"):
+        await LOGGER.log(uid, getattr(event.sender, "username", ""), getattr(event.sender, "first_name", ""), "TEXT", text[:200])
     if not text or text.startswith("/"):
         return
     if LOGIN.get_state(uid):

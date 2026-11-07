@@ -210,6 +210,30 @@ def MENUS(urls):
 
     return {"main": main, "owner": owner, "tutorial": tutorial}
 
+# ─── Log Group Helpers ───
+LOG_CHAT_ID = int(os.environ.get("LOG_CHAT_ID", "0"))
+START_PIC = os.environ.get("START_PIC_URL", "").strip()
+
+async def send_log(bot, text, buttons=None):
+    """Send a nicely formatted log message to the log group."""
+    if not LOG_CHAT_ID:
+        return
+    try:
+        await bot.send_message(LOG_CHAT_ID, text, parse_mode="html", buttons=buttons)
+    except Exception:
+        pass
+
+async def send_start_pic(bot, chat_id, caption, buttons):
+    """Send start picture with caption if START_PIC set, else text."""
+    if START_PIC:
+        try:
+            await bot.send_file(chat_id, START_PIC, caption=caption, parse_mode="html", buttons=buttons)
+            return
+        except Exception:
+            pass
+    await bot.send_message(chat_id, caption, parse_mode="html", buttons=buttons)
+
+
 async def broadcast(bot, db, owner_id, text, parse_mode="html"):
     sent, failed = 0, 0
     cur = db.users.find({"role": {"$in": ["user", "owner"]}})
@@ -289,6 +313,7 @@ def MENUS(urls):
             [btn("👥 Pending", b"own:pending:0", "primary"), btn("✅ Approved", b"own:approved:0", "success")],
             [btn("📊 Stats", b"own:stats", "primary"), btn("🩺 Health", b"own:health", "primary")],
             [btn("🔑 Login Userbot", b"own:login", "success"), btn("📢 Broadcast", b"own:broadcast", "danger")],
+            [btn("📋 Logs", b"own:logs", "primary"), btn("⚙️ Settings", b"own:settings", "success")],
             [btn("🏠 Main Menu", b"menu:main", "success")],
         ]
 
