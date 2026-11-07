@@ -32,8 +32,8 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 APPROVED_FILE = DATA_DIR / "approved.json"
 PENDING_FILE = DATA_DIR / "pending.json"
-TUTORIAL_URL = os.environ.get("TUTORIAL_URL", "https://github.com/oyevipthoma88/Vc-glich-")
-VIDEO_URL = os.environ.get("VIDEO_URL", TUTORIAL_URL)
+TUTORIAL_URL = os.environ.get("TUTORIAL_URL", "").strip()
+VIDEO_URL = os.environ.get("VIDEO_URL", "").strip()
 BOTFATHER_URL = "https://t.me/BotFather"
 MYTG_URL = "https://my.telegram.org"
 
@@ -161,10 +161,12 @@ MENU = MENUS({"tutorial": TUTORIAL_URL, "video": VIDEO_URL})
 main_menu = MENU["main"]
 owner_menu = MENU["owner"]
 tutorial_menu = MENU["tutorial"]
-if TG_SESSION:
+if TG_SESSION and TG_SESSION.strip() and TG_SESSION.strip().startswith("1") and len(TG_SESSION.strip()) > 100:
     user_client = TelegramClient(StringSession(TG_SESSION), API_ID, API_HASH)
+    log.info("Using StringSession from env")
 else:
-    user_client = TelegramClient(str(DATA_DIR / "user"), API_ID, API_HASH)
+    log.error("TG_SESSION missing or invalid — bot will not work for VC fetch")
+    user_client = TelegramClient(StringSession(), API_ID, API_HASH)
 
 async def is_user_approved(uid):
     if uid in OWNER_IDS:

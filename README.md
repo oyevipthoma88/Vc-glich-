@@ -1,10 +1,14 @@
 # VC Glich Bot
 
-Telegram bot: fetch SFU server IPs of active group VCs, owner approval, MongoDB storage, colored inline buttons.
+Telegram bot for fetching SFU server IPs of active group voice chats.
+Features: owner approval, MongoDB storage, colored inline buttons.
 
 ## Deploy to Heroku
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/oyevipthoma88/Vc-glich-)
+
+> Deploy button reference karna zaroori hai — hataya toh button kaam nahi karega.
+> Agar button bhi nahi chahiye, is file se us line ko delete kar sakte ho.
 
 ## Required Config Vars
 
@@ -14,17 +18,13 @@ Telegram bot: fetch SFU server IPs of active group VCs, owner approval, MongoDB 
 | `API_HASH` | From my.telegram.org |
 | `BOT_TOKEN` | From @BotFather |
 | `OWNER_IDS` | Comma-separated numeric IDs |
+| `TG_SESSION` | Telethon StringSession (>=1.43 required for colored buttons) |
 | `MONGO_URI` | MongoDB Atlas URI (optional) |
-| `TG_SESSION` | Telethon StringSession (optional if using /login) |
 
-## Features
+## Colored Buttons — Version Requirement
 
-- Colored inline buttons (primary / success / danger)
-- Owner approval with atomic MongoDB updates
-- Login flow: phone → OTP → 2FA → session saved to MongoDB
-- VC SFU IP fetch with cooldown + validation
-- Pagination for pending/approved lists
-- `/health`, `/stats`, `/broadcast` owner commands
+Colored inline buttons need **Telethon >= 1.43.2** (Bot API 9.4 `style` field).
+`requirements.txt` already pins this.
 
 ## Commands
 

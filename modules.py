@@ -15,8 +15,10 @@ except ImportError:
 try:
     from telethon.tl.types import KeyboardButtonStyle, KeyboardButtonCallback, KeyboardButtonUrl
     HAS_STYLE = True
-except ImportError:
+    log.info("Colored button styles ENABLED")
+except ImportError as _e:
     HAS_STYLE = False
+    log.warning("Colored button styles DISABLED (upgrade telethon>=1.43): %s", _e)
 
 def style(s):
     if not HAS_STYLE or not s:
@@ -30,8 +32,10 @@ def btn(text, data, s=None):
     if HAS_STYLE:
         try:
             return KeyboardButtonCallback(text=text, data=data, style=style(s))
-        except Exception:
-            pass
+        except TypeError as e:
+            log.warning("btn(): style kwarg rejected (old telethon?): %s", e)
+        except Exception as e:
+            log.warning("btn(): %s", e)
     from telethon import Button
     return Button.inline(text, data)
 
@@ -39,8 +43,10 @@ def lnk(text, url, s=None):
     if HAS_STYLE:
         try:
             return KeyboardButtonUrl(text=text, url=url, style=style(s))
-        except Exception:
-            pass
+        except TypeError as e:
+            log.warning("lnk(): style kwarg rejected (old telethon?): %s", e)
+        except Exception as e:
+            log.warning("lnk(): %s", e)
     from telethon import Button
     return Button.url(text, url)
 
@@ -262,17 +268,21 @@ def format_vc_result(res):
 
 # ─── MENUS v2 (colored + better labels) ─────────────────────────
 def MENUS(urls):
-    t = urls.get("tutorial", "https://github.com/oyevipthoma88/Vc-glich-")
-    v = urls.get("video", t)
+    t = (urls.get("tutorial") or "").strip()
+    v = (urls.get("video") or "").strip()
     bf = urls.get("botfather", "https://t.me/BotFather")
     mt = urls.get("mytg", "https://my.telegram.org")
 
     def main():
-        return [
+        rows = [
             [btn("🔍 Get VC IP", b"menu:vc", "primary"), btn("👤 My Account", b"menu:me", "primary")],
             [btn("📖 Tutorial", b"menu:tut", "success"), btn("❓ Help", b"menu:help", "primary")],
-            [lnk("🎥 Video Guide", v, "success"), lnk("📄 Docs", t, "primary")],
         ]
+        extra = []
+        if v: extra.append(lnk("🎥 Video Guide", v, "success"))
+        if t: extra.append(lnk("📄 Docs", t, "primary"))
+        if extra: rows.append(extra)
+        return rows
 
     def owner():
         return [
@@ -283,11 +293,15 @@ def MENUS(urls):
         ]
 
     def tutorial():
-        return [
+        rows = [
             [lnk("🤖 BotFather", bf, "primary"), lnk("🔑 my.telegram.org", mt, "primary")],
-            [lnk("📄 GitHub Docs", t, "success"), lnk("🎥 Video", v, "success")],
-            [btn("⬅️ Back", b"menu:main", "danger")],
         ]
+        extra = []
+        if t: extra.append(lnk("📄 Docs", t, "success"))
+        if v: extra.append(lnk("🎥 Video", v, "success"))
+        if extra: rows.append(extra)
+        rows.append([btn("⬅️ Back", b"menu:main", "danger")])
+        return rows
 
     return {"main": main, "owner": owner, "tutorial": tutorial}
 
