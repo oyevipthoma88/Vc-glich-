@@ -220,7 +220,7 @@ async def h_callback(event):
     uid = event.sender_id
     data = event.data.decode(errors="ignore")
     await LOGGER.log(uid, getattr(event.sender, "username", ""), getattr(event.sender, "first_name", ""), "CALLBACK", data)
-    if data.startswith(("own:health","own:broadcast","own:pending:","own:approved:","own:login","own:stats","own:logs","own:settings","log:del:")):
+    if data.startswith(("own:health","own:broadcast","own:pending:","own:approved:","own:login","own:stats","own:logs","own:settings","own:set_log","own:set_pic","log:del:")):
         return
     if data.startswith("apr:") or data.startswith("rej:"):
         if uid not in OWNER_IDS:
@@ -325,6 +325,35 @@ async def h_text(event):
         return
     if LOGIN.get_state(uid):
         return
+    if WAIT.get(uid) == "log_chat":
+        WAIT.pop(uid, None)
+        try:
+            v = text.strip()
+            if v == "0" or v == "":
+                if DB:
+                    await DB.set_setting("log_chat_id", 0)
+                return await event.respond("✅ Log channel disabled.")
+            val = int(v)
+            if not str(val).startswith("-100"):
+                raise ValueError("ID must start with -100")
+            if DB:
+                await DB.set_setting("log_chat_id", val)
+                return await event.respond("✅ Log channel set: <code>" + str(val) + "</code>\nBot admin hai toh logs aayenge.", parse_mode="html")
+            return await event.respond("❌ DB not configured")
+        except Exception as ex:
+            return await event.respond("❌ Invalid: " + str(ex))
+    if WAIT.get(uid) == "start_pic":
+        WAIT.pop(uid, None)
+        if text.strip().lower() == "none":
+            if DB:
+                await DB.set_setting("start_pic_url", "")
+            return await event.respond("✅ Start picture removed.")
+        if not (text.startswith("http://") or text.startswith("https://")):
+            return await event.respond("❌ URL must start with http:// or https://")
+        if DB:
+            await DB.set_setting("start_pic_url", text.strip())
+            return await event.respond("✅ Start picture set:\n<code>" + text.strip() + "</code>", parse_mode="html")
+        return await event.respond("❌ DB not configured")
     if WAIT.get(uid) == "broadcast":
         WAIT.pop(uid, None)
         if not text:
@@ -358,6 +387,24 @@ handlers.init({"bot": bot, "user_client": user_client, "DB": DB, "LOGIN": LOGIN,
 
 async def main():
     global user_client
+    if DB is not None:
+        try:
+            _s = await DB.get_settings()
+            if _s.get("log_chat_id"):
+                try:
+                    import logsystem as _ls
+                    _ls.LOG_CHAT_ID = int(_s["log_chat_id"])
+                except Exception:
+                    pass
+            if _s.get("start_pic_url"):
+                try:
+                    import modules as _md
+                    _md.START_PIC = _s["start_pic_url"]
+                except Exception:
+                    pass
+            log.info("Settings loaded: log_chat=%s, start_pic=%s", _s.get("log_chat_id"), bool(_s.get("start_pic_url")))
+        except Exception as _e:
+            log.warning("settings load: %s", _e)
     if not TG_SESSION and DB:
         try:
             _s = await DB.get_session(OWNER_IDS[0])

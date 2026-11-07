@@ -21,20 +21,13 @@ def _btn(text, data, s=None):
     except Exception:
         return Button.inline(text, data)
 
-def _lnk(text, url, s=None):
-    try:
-        from telethon.tl.types import KeyboardButtonUrl
-        return KeyboardButtonUrl(text=text, url=url, style=_style(s))
-    except Exception:
-        return Button.url(text, url)
-
 class Logger:
     def __init__(self, db):
         self.db = db
-        self.logs = db.logs if db else None
+        self.logs = db.logs if db is not None else None
 
     async def log(self, uid, username, first_name, action, detail="", chat_id=None):
-        if not self.logs:
+        if self.logs is None:
             return
         doc = {
             "user_id": uid,
@@ -45,18 +38,29 @@ class Logger:
             "chat_id": chat_id,
             "ts": datetime.utcnow(),
         }
-        await self.logs.insert_one(doc)
+        try:
+            res = await self.logs.insert_one(doc)
+            doc["_id"] = res.inserted_id
+        except Exception:
+            return
         await self._send_to_group(doc)
 
     async def _send_to_group(self, doc):
-        if not LOG_CHAT_ID:
+        log_chat_id = None
+        if self.db is not None:
+            try:
+                s = await self.db.get_settings()
+                log_chat_id = s.get("log_chat_id")
+            except Exception:
+                pass
+        if not log_chat_id:
+            log_chat_id = LOG_CHAT_ID
+        if not log_chat_id:
+            return
+        bot = _bot_ref.get("bot")
+        if not bot:
             return
         try:
-            from telethon import TelegramClient
-            # bot instance passed via global
-            bot = _bot_ref.get("bot")
-            if not bot:
-                return
             text = (
                 "📋 <b>LOG EVENT</b>\n\n"
                 "👤 <b>User:</b> " + html.escape(doc["first_name"] or "Unknown") + "\n"
@@ -66,7 +70,7 @@ class Logger:
                 "📝 <b>Detail:</b> " + html.escape(str(doc["detail"])[:200]) + "\n"
                 "🕒 <b>Time:</b> <code>" + doc["ts"].strftime("%Y-%m-%d %H:%M:%S") + " UTC</code>"
             )
-            await bot.send_message(LOG_CHAT_ID, text, parse_mode="html", buttons=[
+            await bot.send_message(int(log_chat_id), text, parse_mode="html", buttons=[
                 [_btn("🗑 Delete This Log", ("log:del:" + str(doc.get("_id", ""))).encode(), "danger")]
             ])
         except Exception:

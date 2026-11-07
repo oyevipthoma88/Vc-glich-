@@ -115,6 +115,22 @@ class Database:
     async def log_event(self, uid, action, detail=""):
         await self.logs.insert_one({"user_id": uid, "action": action, "detail": detail, "ts": datetime.utcnow()})
 
+    async def get_settings(self):
+        try:
+            s = await self.db["settings"].find_one({"_id": "bot"})
+            return s or {}
+        except Exception:
+            return {}
+
+    async def set_setting(self, key, value):
+        try:
+            await self.db["settings"].update_one(
+                {"_id": "bot"}, {"$set": {key: value}}, upsert=True
+            )
+            return True
+        except Exception:
+            return False
+
 class LoginFlow:
     def __init__(self, api_id, api_hash):
         self.api_id = api_id
@@ -223,11 +239,17 @@ async def send_log(bot, text, buttons=None):
     except Exception:
         pass
 
-async def send_start_pic(bot, chat_id, caption, buttons):
-    """Send start picture with caption if START_PIC set, else text."""
-    if START_PIC:
+async def send_start_pic(bot, chat_id, caption, buttons, start_pic=None, db=None):
+    pic = start_pic or START_PIC
+    if not pic and db is not None:
         try:
-            await bot.send_file(chat_id, START_PIC, caption=caption, parse_mode="html", buttons=buttons)
+            s = await db.get_settings()
+            pic = s.get("start_pic_url") or ""
+        except Exception:
+            pass
+    if pic:
+        try:
+            await bot.send_file(chat_id, pic, caption=caption, parse_mode="html", buttons=buttons)
             return
         except Exception:
             pass
@@ -314,6 +336,7 @@ def MENUS(urls):
             [btn("📊 Stats", b"own:stats", "primary"), btn("🩺 Health", b"own:health", "primary")],
             [btn("🔑 Login Userbot", b"own:login", "success"), btn("📢 Broadcast", b"own:broadcast", "danger")],
             [btn("📋 Logs", b"own:logs", "primary"), btn("⚙️ Settings", b"own:settings", "success")],
+            [btn("📝 Set Log Channel", b"own:set_log", "primary"), btn("🖼 Set Start Pic", b"own:set_pic", "success")],
             [btn("🏠 Main Menu", b"menu:main", "success")],
         ]
 

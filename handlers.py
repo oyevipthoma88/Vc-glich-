@@ -191,3 +191,34 @@ def init(ctx):
         except Exception as ex:
             await event.answer("Error: " + str(ex), alert=True)
         raise events.StopPropagation
+
+    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:set_log"))
+    async def cb_set_log(event):
+        if event.sender_id not in OWNER_IDS:
+            return await event.answer("Owner only", alert=True)
+        WAIT[event.sender_id] = "log_chat"
+        await event.edit(
+            "📝 <b>Set Log Channel</b>\n\n"
+            "Send the group/channel ID (format: <code>-100...</code>).\n"
+            "Bot must be admin in that group.\n\n"
+            "Get ID: forward any message from that group to <code>@userinfobot</code>\n"
+            "Send <code>0</code> to disable logs.",
+            parse_mode="html",
+            buttons=[[Button.inline("⬅️ Cancel", b"menu:main")]]
+        )
+        raise events.StopPropagation
+
+    @bot.on(events.CallbackQuery(func=lambda e: e.data == b"own:set_pic"))
+    async def cb_set_pic(event):
+        if event.sender_id not in OWNER_IDS:
+            return await event.answer("Owner only", alert=True)
+        WAIT[event.sender_id] = "start_pic"
+        await event.edit(
+            "🖼 <b>Set Start Picture</b>\n\n"
+            "Send a public image URL (jpg/png).\n"
+            "Example: <code>https://example.com/pic.jpg</code>\n\n"
+            "Send <code>none</code> to remove the picture.",
+            parse_mode="html",
+            buttons=[[Button.inline("⬅️ Cancel", b"menu:main")]]
+        )
+        raise events.StopPropagation
