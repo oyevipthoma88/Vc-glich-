@@ -1,0 +1,21 @@
+{
+  "name": "VC Glich Bot",
+  "description": "Telegram VC SFU IP fetcher with owner approval",
+  "repository": "https://github.com/oyevipthoma88/Vc-glich-",
+  "logo": "https://telegram.org/img/t_logo.png",
+  "keywords": ["telegram", "telethon", "vc", "sfu"],
+  "buildpacks": [{"url": "heroku/python"}],
+  "formation": {
+    "worker": {"quantity": 1, "size": "eco"}
+  },
+  "env": {
+    "API_ID": {"description": "Telegram API ID", "required": true},
+    "API_HASH": {"description": "Telegram API HASH", "required": true},
+    "BOT_TOKEN": {"description": "BotFather token", "required": true},
+    "OWNER_IDS": {"description": "Comma-separated owner IDs", "required": true},
+    "TG_SESSION": {"description": "Telethon StringSession", "required": true},
+    "APPROVED_IDS": {"description": "Pre-approved IDs", "required": false, "value": ""},
+    "TUTORIAL_URL": {"description": "Tutorial URL", "required": false, "value": "https://github.com/oyevipthoma88/Vc-glich-"},
+    "VIDEO_URL": {"description": "Video URL", "required": false, "value": "https://github.com/oyevipthoma88/Vc-glich-"}
+  }
+}
