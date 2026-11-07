@@ -21,6 +21,8 @@ except Exception:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("vcbot")
 
+from modules import Database, LoginFlow, MENUS, broadcast, health_check, btn, lnk
+
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
@@ -170,10 +172,21 @@ async def fetch_vc(uc, target):
     return {"target": target, "title": entity.title, "group_id": entity.id, "active_vc": True, "ssrc": ssrc, "ips": sorted(ips), "participants": parts}
 
 bot = TelegramClient("bot", API_ID, API_HASH)
+
+DB = Database(os.environ["MONGO_URI"]) if os.environ.get("MONGO_URI") else None
+LOGIN = LoginFlow(API_ID, API_HASH)
+MENU = MENUS({"tutorial": TUTORIAL_URL, "video": VIDEO_URL})
 if TG_SESSION:
     user_client = TelegramClient(StringSession(TG_SESSION), API_ID, API_HASH)
 else:
     user_client = TelegramClient(str(DATA_DIR / "user"), API_ID, API_HASH)
+
+async def is_user_approved(uid):
+    if uid in OWNER_IDS:
+        return True
+    if DB:
+        return await DB.is_approved(uid)
+    return uid in approved
 
 @bot.on(events.NewMessage(pattern=r"^/start$"))
 async def h_start(event):
@@ -182,7 +195,7 @@ async def h_start(event):
     if uid in OWNER_IDS:
         await event.respond("👑 <b>Owner Panel</b>\n\nManage access requests and approvals.", buttons=owner_menu(), parse_mode="html")
         return
-    if uid in approved:
+    if await is_user_approved(uid):
         await event.respond("✅ <b>Access granted</b>\n\nChoose an option below.", buttons=main_menu(), parse_mode="html")
         return
     name = html.escape(event.sender.first_name or "Unknown")
